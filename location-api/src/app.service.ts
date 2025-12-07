@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { createClerkClient } from '@clerk/backend';
+import { ClerkService } from './clerk/clerk.service';
 
 @Injectable()
 export class AppService {
+  constructor(private clerk: ClerkService) {}
+
   async getUsers() {
-    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
-    return clerkClient.users.getUserList();
+    return this.clerk.client.users.getUserList();
   }
 }

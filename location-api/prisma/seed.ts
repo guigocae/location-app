@@ -18,6 +18,7 @@ async function main() {
   const permsData = [
     { name: 'create_rental', desc: 'Can create rentals' },
     { name: 'manage_user', desc: 'Can manage users' },
+    { name: 'rental_condition', desc: "Can see rental's conditions" },
   ];
 
   // upsert roles
@@ -39,31 +40,33 @@ async function main() {
   }
 
   const masterRole = await prisma.role.findUnique({ where: { name: 'MASTER' } });
-  const allPermissions = await prisma.permission.findMany();
+  const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
 
   if (!masterRole) throw new Error('MASTER role not found after upsert.');
+  if (!adminRole) throw new Error('ADMIN role not found after upsert.');
+  
+  const allPermissions = await prisma.permission.findMany();
 
-  // Associa permissões ao MASTER sem upsert composto
-  for (const perm of allPermissions) {
-    const exists = await prisma.rolePermission.findFirst({
-      where: { roleId: masterRole.id, permissionId: perm.id },
-    });
-    if (!exists) {
-      await prisma.rolePermission.create({
-        data: { roleId: masterRole.id, permissionId: perm.id },
-      });
-    }
-  }
+  // Associa todas as permissões ao MASTER
+  await prisma.rolePermission.createMany({
+    data: allPermissions.map(perm => ({
+      roleId: masterRole.id,
+      permissionId: perm.id,
+    })),
+    skipDuplicates: true,
+  });
 
   // Associa permissões ao ADMIN
-  const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
-  const adminPermission = await prisma.permission.findUnique({ where: { name: 'create_rental' } });
+  const adminPerms = await prisma.permission.findMany({
+    where: { name: { in: ['create_rental', 'rental_condition'] } },
+  });
 
-  if (!adminRole) throw new Error('ADMIN role not found after upsert.');
-  if (!adminPermission) throw new Error('ADMIN permission not found after upsert.');
-
-  await prisma.rolePermission.create({
-    data: { roleId: adminRole.id, permissionId: adminPermission.id },
+  await prisma.rolePermission.createMany({
+    data: adminPerms.map(p => ({
+      roleId: adminRole.id,
+      permissionId: p.id,
+    })),
+    skipDuplicates: true,
   });
 
   // Cria master user com clerkId vindo da env
@@ -78,20 +81,10 @@ async function main() {
     update: {},
     create: {
       clerkId: masterClerkId,
+      roleId: masterRole.id,
       enabled: true,
     },
   });
-
-  // Associa user -> role (evita duplicata)
-  const userRoleExists = await prisma.userRole.findFirst({
-    where: { userId: masterUser.id, roleId: masterRole.id },
-  });
-
-  if (!userRoleExists) {
-    await prisma.userRole.create({
-      data: { userId: masterUser.id, roleId: masterRole.id },
-    });
-  }
 
   console.log('🌱 Seed finalizado!');
 }
