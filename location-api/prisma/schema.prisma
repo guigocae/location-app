@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String      @id @default(cuid())
+  clerkId    String?     @unique
+  email      String?
+  enabled    Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  roles      UserRole[]
+  rentals    Rental[]    @relation("creator")
+}
+
+model Role {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  desc            String?
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+}
+
+model Permission {
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  desc             String?
+  rolePermissions  RolePermission[]
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  role         Role       @relation(fields: [roleId], references: [id])
+  roleId       Int
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  permissionId Int
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId String
+  role   Role @relation(fields: [roleId], references: [id])
+  roleId Int
+}
+
+model Rental {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  startAt     DateTime
+  endAt       DateTime
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], name: "creator")
+  public      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   String?
+  action    String
+  resource  String
+  data      Json?
+  createdAt DateTime @default(now())
+}
